@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel, pipeline
 import numpy as np
 import re
-from typing import List, Dict, Tuple, Optional, Deque
+from typing import List, Dict, Tuple, Optional, Deque, Any
 from collections import deque
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -71,14 +71,62 @@ class ModelResponseState(Enum):
     COMPROMISED = auto()
 
 @dataclass
+class AnalysisResult:
+    """Result of analyzing a prompt"""
+    score: float
+    nature: PromptNature
+    details: Dict[str, Any]
+    explanation: str
+    tokens: Dict[str, float]
+    model_response: str
+    context_score: float
+    sentiment_score: float
+    manipulation_score: float
+    deception_score: float
+    toxicity_score: float
+
+    def __post_init__(self):
+        """Convert numpy float32 values to Python floats"""
+        self.score = float(self.score)
+        self.context_score = float(self.context_score)
+        self.sentiment_score = float(self.sentiment_score)
+        self.manipulation_score = float(self.manipulation_score)
+        self.deception_score = float(self.deception_score)
+        self.toxicity_score = float(self.toxicity_score)
+        self.tokens = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                      for k, v in self.tokens.items()}
+        self.details = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                       for k, v in self.details.items()}
+
+    def to_dict(self):
+        """Convert AnalysisResult to dictionary for JSON serialization"""
+        data = asdict(self)
+        data['nature'] = self.nature.name
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create AnalysisResult from dictionary"""
+        data['nature'] = PromptNature[data['nature']]
+        return cls(**data)
+
+@dataclass
 class Message:
+    """A message in the conversation with analysis"""
     text: str
     is_user: bool
     timestamp: float
-    analysis: Optional['AnalysisResult'] = None
-    sentiment: Optional[float] = None
-    entities: Optional[List[Dict]] = None
-    toxicity: Optional[Dict[str, float]] = None
+    sentiment: float
+    entities: List[str]
+    toxicity: Dict[str, float]
+    analysis: Optional[AnalysisResult] = None
+
+    def __post_init__(self):
+        """Convert numpy float32 values to Python floats"""
+        self.timestamp = float(self.timestamp)
+        self.sentiment = float(self.sentiment)
+        self.toxicity = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                        for k, v in self.toxicity.items()}
 
     def to_dict(self):
         """Convert Message to dictionary for JSON serialization"""
@@ -95,33 +143,8 @@ class Message:
         return cls(**data)
 
 @dataclass
-class AnalysisResult:
-    score: float
-    nature: PromptNature
-    details: Dict[str, float]
-    explanation: str
-    tokens: Dict[str, float]
-    model_response: str
-    context_score: float = 0.0
-    sentiment_score: float = 0.0
-    manipulation_score: float = 0.0
-    deception_score: float = 0.0
-    toxicity_score: float = 0.0
-
-    def to_dict(self):
-        """Convert AnalysisResult to dictionary for JSON serialization"""
-        data = asdict(self)
-        data['nature'] = self.nature.name
-        return data
-
-    @classmethod
-    def from_dict(cls, data):
-        """Create AnalysisResult from dictionary"""
-        data['nature'] = PromptNature[data['nature']]
-        return cls(**data)
-
-@dataclass
 class ResponseAnalysis:
+    """Analysis of a model's response"""
     state: ModelResponseState
     confidence: float
     details: Dict[str, float]
@@ -129,6 +152,12 @@ class ResponseAnalysis:
     harmful_content_detected: bool
     evasion_detected: bool
     explanation: str
+
+    def __post_init__(self):
+        """Convert numpy float32 values to Python floats"""
+        self.confidence = float(self.confidence)
+        self.details = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                       for k, v in self.details.items()}
 
 class ResponseAnalyzer:
     """Analyzes model responses to detect compromised or harmful behavior"""
@@ -411,13 +440,14 @@ class AnalysisLogger:
                 text=text,
                 label=result.nature.name,
                 features={
-                    'jailbreak_score': result.score,
-                    'context_score': result.context_score,
-                    'sentiment_score': result.sentiment_score,
-                    'manipulation_score': result.manipulation_score,
-                    'deception_score': result.deception_score,
-                    'toxicity_score': result.toxicity_score,
-                    **result.details
+                    'jailbreak_score': float(result.score),
+                    'context_score': float(result.context_score),
+                    'sentiment_score': float(result.sentiment_score),
+                    'manipulation_score': float(result.manipulation_score),
+                    'deception_score': float(result.deception_score),
+                    'toxicity_score': float(result.toxicity_score),
+                    **{k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                       for k, v in result.details.items()}
                 },
                 tokens=result.tokens,
                 context=context,
@@ -641,24 +671,24 @@ class JailbreakDetector:
                 msg_dict = {
                     'text': msg.text,
                     'is_user': msg.is_user,
-                    'timestamp': msg.timestamp,
-                    'sentiment': msg.sentiment,
+                    'timestamp': float(msg.timestamp),  # Convert to Python float
+                    'sentiment': float(msg.sentiment),  # Convert to Python float
                     'entities': msg.entities,
                     'toxicity': msg.toxicity
                 }
                 if msg.analysis:
                     msg_dict['analysis'] = {
-                        'score': msg.analysis.score,
+                        'score': float(msg.analysis.score),  # Convert to Python float
                         'nature': msg.analysis.nature.name,
                         'details': msg.analysis.details,
                         'explanation': msg.analysis.explanation,
                         'tokens': msg.analysis.tokens,
                         'model_response': msg.analysis.model_response,
-                        'context_score': msg.analysis.context_score,
-                        'sentiment_score': msg.analysis.sentiment_score,
-                        'manipulation_score': msg.analysis.manipulation_score,
-                        'deception_score': msg.analysis.deception_score,
-                        'toxicity_score': msg.analysis.toxicity_score
+                        'context_score': float(msg.analysis.context_score),  # Convert to Python float
+                        'sentiment_score': float(msg.analysis.sentiment_score),  # Convert to Python float
+                        'manipulation_score': float(msg.analysis.manipulation_score),  # Convert to Python float
+                        'deception_score': float(msg.analysis.deception_score),  # Convert to Python float
+                        'toxicity_score': float(msg.analysis.toxicity_score)  # Convert to Python float
                     }
                 history_data.append(msg_dict)
             
