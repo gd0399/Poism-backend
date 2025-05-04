@@ -4,10 +4,11 @@ from rich.panel import Panel
 import torch
 import logging
 import os
+import sys
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
@@ -56,15 +57,30 @@ def test_model():
         ))
         
         for text in test_cases:
-            console.print(f"\n[bold]Testing:[/bold] {text}")
-            result = detector.predict(text)
-            display_results(result, console)
+            try:
+                console.print(f"\n[bold]Testing:[/bold] {text}")
+                result = detector.predict(text)
+                display_results(result, console)
+            except Exception as e:
+                console.print(Panel.fit(
+                    f"[bold red]Error processing test case:[/bold red]\n{str(e)}",
+                    border_style="red"
+                ))
+                continue
             
     except Exception as e:
         console.print(Panel.fit(
             f"[bold red]Error during testing:[/bold red]\n{str(e)}",
             border_style="red"
         ))
+        logging.error(f"Error: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    test_model() 
+    try:
+        test_model()
+    except KeyboardInterrupt:
+        print("\nTest interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nCritical error: {e}")
+        sys.exit(1) 

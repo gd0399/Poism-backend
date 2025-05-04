@@ -1,110 +1,122 @@
 # POIsim - AI Safety and Jailbreak Detection System
 
-POIsim is an advanced AI safety system designed to detect and prevent harmful content generation, jailbreak attempts, and unethical AI interactions. The system uses a combination of machine learning models, pattern recognition, and safety protocols to ensure AI responses remain within ethical boundaries.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/poisim.svg)](https://badge.fury.io/py/poisim)
+[![Documentation Status](https://readthedocs.org/projects/poisim/badge/?version=latest)](https://poisim.readthedocs.io/en/latest/?badge=latest)
 
-## Features
+A powerful AI safety system designed to detect and prevent harmful content, jailbreak attempts, and unethical AI interactions. POIsim helps ensure AI systems remain safe and ethical by analyzing prompts and detecting potential risks.
 
-- Jailbreak attempt detection
-- Harmful content classification
-- Toxicity analysis
-- Context-aware safety measures
-- Real-time response monitoring
-- Conversation history tracking
-- Multi-model safety verification
+## 🚀 Quick Start
 
-## Prerequisites
+### Installation
 
-- Python 3.8 or higher
-- pip (Python package manager)
-- Virtual environment (recommended)
-
-## Installation
-
-1. Clone the repository:
 ```bash
+# Install from PyPI
+pip install poisim
+
+# Or install from source
 git clone https://github.com/muralikrish9/POIsim.git
 cd POIsim
+pip install -e .
 ```
 
-2. Create and activate a virtual environment:
+### Basic Usage
+
+```python
+from poisim import JailbreakDetector
+
+# Initialize detector
+detector = JailbreakDetector()
+
+# Analyze a prompt
+result = detector.predict("Your text here")
+
+# View results
+print(f"Safety Score: {result.score}")
+print(f"Nature: {result.nature}")
+print(f"Explanation: {result.explanation}")
+```
+
+## 🌟 Features
+
+- 🛡️ **Multi-Model Analysis**: Combines BERT, Gemini, Detoxify, SpaCy, and TextBlob
+- 🔍 **Advanced Detection**: Identifies jailbreak attempts and harmful content
+- 📊 **Comprehensive Analysis**: Detailed safety scoring and explanations
+- 🧠 **Context-Aware**: Understands conversation history and context
+- 📝 **Detailed Reports**: Provides comprehensive analysis results
+- 🚫 **Real-time Prevention**: Blocks harmful content before processing
+
+## 📋 Requirements
+
+- Python 3.8 or higher
+- Gemini API key
+- Internet connection for model downloads
+- 4GB RAM minimum (8GB recommended)
+- 2GB free storage
+- NVIDIA GPU with CUDA support (optional, for better performance)
+
+## 🔧 Setup
+
+1. **Environment Setup**:
 ```bash
-# On Windows
+# Create virtual environment
 python -m venv venv
-.\venv\Scripts\activate
-
-# On macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. Install required packages:
+2. **API Key Setup**:
+Create a `.env` file:
 ```bash
-pip install -r requirements.txt
+GEMINI_API_KEY=your_api_key_here
 ```
 
-4. Set up environment variables:
-   - Create a `.env` file in the project root
-   - Add your Google API key:
-```
-GOOGLE_API_KEY=your_api_key_here
-```
-
-## Project Structure
-
-```
-POIsim/
-├── classifier/
-│   ├── jailbreak_detector.py    # Main jailbreak detection logic
-│   └── ...
-├── data/
-│   └── conversation_history.json # Conversation logs
-├── requirements.txt             # Project dependencies
-├── .env                         # Environment variables
-└── README.md                    # Project documentation
-```
-
-## Usage
-
-1. Run the test script to verify the system:
+3. **Model Download**:
 ```bash
-python test_trained_model.py
+python download_model.py
 ```
 
-2. The system will analyze various types of prompts:
-   - Harmful content attempts
-   - Jailbreak attempts
-   - Safe queries
-   - Educational content
+## 📚 Documentation
 
-3. Results will be displayed with:
-   - Jailbreak probability
-   - Content classification
-   - Risk factors
-   - Toxicity analysis
-   - Model response state
+For detailed documentation, visit our [documentation site](https://poisim.readthedocs.io/).
 
-## Safety Features
+## 🎯 Use Cases
 
-- **Content Classification**: Identifies harmful, illegal, or unethical content
-- **Pattern Recognition**: Detects common jailbreak attempts and evasion patterns
-- **Toxicity Analysis**: Measures harmful content using multiple metrics
-- **Context Awareness**: Considers conversation history for better detection
-- **Multi-Model Verification**: Uses multiple models for enhanced safety
+- **AI Safety**: Prevent harmful content generation
+- **Content Moderation**: Filter inappropriate content
+- **Research**: Study AI safety and jailbreak patterns
+- **Development**: Integrate safety checks into AI applications
 
-## Contributing
+## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 📞 Support
 
-- Google AI for API access
-- Hugging Face for model support
-- OpenAI for inspiration and safety guidelines 
+- 📚 [Documentation](https://poisim.readthedocs.io/)
+- 💬 [Discussions](https://github.com/muralikrish9/POIsim/discussions)
+- 🐛 [Issue Tracker](https://github.com/muralikrish9/POIsim/issues)
+
+## 📝 Citation
+
+If you use POIsim in your research, please cite:
+
+```bibtex
+@software{poisim2024,
+  author = {Dinesh Gunda},
+  title = {POIsim: AI Safety and Jailbreak Detection System},
+  year = {2024},
+  url = {https://github.com/muralikrish9/POIsim}
+}
+```
+
+## 🙏 Acknowledgments
+
+- Google AI
+- Hugging Face
+- Open-source community
+- AI Safety Research Community 

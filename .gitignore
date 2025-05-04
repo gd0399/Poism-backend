@@ -24,7 +24,6 @@ wheels/
 venv/
 ENV/
 env/
-.env
 
 # IDE
 .idea/
@@ -32,18 +31,41 @@ env/
 *.swp
 *.swo
 
-# Project specific
-backup.zip
-training_data/
-*.pth
-*.pt
+# Environment variables
+.env
+
+# Model files
 *.bin
-*.onnx
+*.pt
+*.pth
+*.ckpt
+*.h5
 
 # Logs
 *.log
 logs/
+training_data/
 
-# System
-.DS_Store
-Thumbs.db 
+# Cache
+.cache/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Local development
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover 

@@ -28,8 +28,11 @@ from detoxify import Detoxify
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+# Configure Gemini with explicit settings
+genai.configure(
+    api_key=os.getenv('GEMINI_API_KEY'),
+    transport='rest'  # Use REST transport instead of gRPC
+)
 
 # Load spaCy model
 try:
