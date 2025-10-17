@@ -47,6 +47,12 @@
         </div>
     </div>
 
+    <section class="container mx-auto px-4 mt-12">
+        <h2 class="text-2xl font-bold text-gray-800">Spinning Cube (Perspective-Correct, WebGL2)</h2>
+        <p class="text-gray-600 mt-1">90° FOV (.25 τ), spinning at .125 τ/s. Depth debug shader using gl_FragCoord.z.</p>
+        <canvas id="glcanvas" class="mt-4 w-full bg-black rounded" style="aspect-ratio: 4 / 3; max-height: 70vh;"></canvas>
+    </section>
+
     <script>
         async function analyzeText() {
             const text = document.getElementById('text-input').value;
@@ -78,6 +84,255 @@
             } catch (error) {
                 alert('Error analyzing text: ' + error.message);
             }
+        }
+    </script>
+
+    <script type="module">
+        const TAU = Math.PI * 2;
+
+        class Mat4 {
+            constructor(values) {
+                this.m = values ? new Float32Array(values) : Mat4.identity().m;
+            }
+
+            static identity() {
+                return new Mat4([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1,
+                ]);
+            }
+
+            static multiply(a, b) {
+                const out = new Float32Array(16);
+                const am = a.m, bm = b.m;
+                for (let col = 0; col < 4; col++) {
+                    for (let row = 0; row < 4; row++) {
+                        let sum = 0;
+                        for (let k = 0; k < 4; k++) {
+                            sum += am[k * 4 + row] * bm[col * 4 + k];
+                        }
+                        out[col * 4 + row] = sum;
+                    }
+                }
+                return new Mat4(out);
+            }
+
+            static translation(x, y, z) {
+                // Column-major; translation occupies the last (4th) column
+                return new Mat4([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    x, y, z, 1,
+                ].map((v, i) => v))
+                    // Reorder to place translation in last column
+                    // Desired columns: [1,0,0,0], [0,1,0,0], [0,0,1,0], [x,y,z,1]
+                    ;
+            }
+
+            static rotationY(theta) {
+                const c = Math.cos(theta);
+                const s = Math.sin(theta);
+                // Left-handed Y rotation (D3D-style):
+                // [ c  0 -s  0 ]
+                // [ 0  1  0  0 ]
+                // [ s  0  c  0 ]
+                // [ 0  0  0  1 ]
+                return new Mat4([
+                    c, 0, s, 0,
+                    0, 1, 0, 0,
+                    -s, 0, c, 0,
+                    0, 0, 0, 1,
+                ]);
+            }
+
+            // Left-handed frustum, column-major layout for WebGL
+            static frustum(left, right, bottom, top, near, far) {
+                const scale_x = (2 * near) / (right - left);
+                const scale_y = (2 * near) / (top - bottom);
+                const t_x = (right + left) / (right - left);
+                const t_y = (top + bottom) / (top - bottom);
+
+                const nonlin_c2 = (far + near) / (far - near);
+                const nonlin_c1 = (2 * far * near) / (far - near);
+                const c2 = nonlin_c2;
+                const c1 = nonlin_c1;
+
+                // Column-major order
+                return new Mat4([
+                    scale_x, 0, 0, 0,
+                    0, scale_y, 0, 0,
+                    t_x, t_y, c2, 1,
+                    0, 0, -c1, 0,
+                ]);
+            }
+
+            static perspective(fovyRadians, aspect, near, far) {
+                const t = near * Math.tan(fovyRadians / 2);
+                const b = -t;
+                const r = t * aspect;
+                const l = -r;
+                return Mat4.frustum(l, r, b, t, near, far);
+            }
+        }
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                const info = gl.getShaderInfoLog(shader);
+                gl.deleteShader(shader);
+                throw new Error('Shader compile failed: ' + info);
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vsSource, fsSource) {
+            const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            const program = gl.createProgram();
+            gl.attachShader(program, vs);
+            gl.attachShader(program, fs);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                const info = gl.getProgramInfoLog(program);
+                gl.deleteProgram(program);
+                throw new Error('Program link failed: ' + info);
+            }
+            return program;
+        }
+
+        const vertex_source = `#version 300 es\n
+        precision highp float;\n
+        layout(location=0) in vec3 a_position;\n
+        uniform mat4 u_mvp;\n
+        out vec4 v_color;\n
+        void main() {\n
+            gl_Position = u_mvp * vec4(a_position, 1.0);\n
+            v_color = vec4(1.0);\n
+        }`;
+
+        const fragment_source = `#version 300 es\n
+        precision mediump float;\n
+        in vec4 v_color;\n
+        out vec4 f_color;\n
+        void main(void) {\n
+            f_color = vec4(vec3(gl_FragCoord.z), 1.0);\n
+        }`;
+
+        function initGL() {
+            const canvas = document.getElementById('glcanvas');
+            if (!canvas) return;
+
+            const gl = canvas.getContext('webgl2');
+            if (!gl) {
+                console.warn('WebGL2 not supported.');
+                return;
+            }
+
+            // Create shaders & program
+            const program = createProgram(gl, vertex_source, fragment_source);
+            gl.useProgram(program);
+
+            // Cube geometry (positions and indices)
+            const positions = new Float32Array([
+                // 0-3: back face (z = -1)
+                -1, -1, -1,
+                 1, -1, -1,
+                 1,  1, -1,
+                -1,  1, -1,
+                // 4-7: front face (z = +1)
+                -1, -1,  1,
+                 1, -1,  1,
+                 1,  1,  1,
+                -1,  1,  1,
+            ]);
+
+            const indices = new Uint16Array([
+                // back
+                0, 1, 2, 0, 2, 3,
+                // front
+                4, 5, 6, 4, 6, 7,
+                // top
+                3, 2, 6, 3, 6, 7,
+                // bottom
+                0, 4, 5, 0, 5, 1,
+                // right
+                1, 5, 6, 1, 6, 2,
+                // left
+                0, 3, 7, 0, 7, 4,
+            ]);
+
+            const vao = gl.createVertexArray();
+            gl.bindVertexArray(vao);
+
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+            const ebo = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+            // Uniforms
+            const u_mvp = gl.getUniformLocation(program, 'u_mvp');
+
+            // GL state
+            gl.enable(gl.DEPTH_TEST);
+            gl.clearDepth(1.0);
+            gl.clearColor(0.1, 0.1, 0.12, 1.0);
+            // gl.enable(gl.CULL_FACE); // optional
+
+            function resizeCanvasToDisplaySize() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                const displayWidth = Math.max(1, Math.floor(rect.width * dpr));
+                const displayHeight = Math.max(1, Math.floor(rect.height * dpr));
+                if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                    canvas.width = displayWidth;
+                    canvas.height = displayHeight;
+                }
+                gl.viewport(0, 0, canvas.width, canvas.height);
+            }
+
+            let start = performance.now();
+
+            function render(now) {
+                resizeCanvasToDisplaySize();
+
+                const t = (now - start) / 1000;
+                const angle = -TAU * 0.125 * t; // clockwise at .125 τ per second
+
+                const aspect = canvas.width / canvas.height;
+                const proj = Mat4.perspective(Math.PI / 2, aspect, 0.1, 100.0);
+                const model = Mat4.multiply(
+                    Mat4.translation(0, 0, 6),
+                    Mat4.rotationY(angle)
+                );
+                const mvp = Mat4.multiply(proj, model);
+
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                gl.uniformMatrix4fv(u_mvp, false, mvp.m);
+                gl.bindVertexArray(vao);
+                gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+                requestAnimationFrame(render);
+            }
+
+            requestAnimationFrame(render);
+            window.addEventListener('resize', () => resizeCanvasToDisplaySize());
+        }
+
+        // Defer initialization until DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGL);
+        } else {
+            initGL();
         }
     </script>
 </body>
