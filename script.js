@@ -1,5 +1,5 @@
 /* WebGL2 spinning cube with frustum-based perspective */
-(() => {
+(function () {
   const canvas = document.getElementById('glcanvas');
   /** @type {WebGL2RenderingContext} */
   const gl = canvas.getContext('webgl2', { antialias: true });
@@ -126,10 +126,29 @@
   };
 
   // ---------- Shaders ----------
-  const vertexSource = `#version 300 es\nprecision highp float;\nlayout(location=0) in vec3 a_position;\nuniform mat4 u_model;\nuniform mat4 u_view;\nuniform mat4 u_proj;\nvoid main() {\n  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);\n}`;
+  const vertexSource = [
+    '#version 300 es',
+    'precision highp float;',
+    'layout(location=0) in vec3 a_position;',
+    'uniform mat4 u_model;',
+    'uniform mat4 u_view;',
+    'uniform mat4 u_proj;',
+    'void main() {',
+    '  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);',
+    '}',
+  ].join('\n');
 
   // Grayscale depth-based shading: near -> dark, far -> light
-  const fragmentSource = `#version 300 es\nprecision mediump float;\nout vec4 outColor;\nvoid main() {\n  float d = clamp(gl_FragCoord.z, 0.0, 1.0);\n  float gray = mix(0.08, 0.96, pow(d, 1.2));\n  outColor = vec4(vec3(gray), 1.0);\n}`;
+  const fragmentSource = [
+    '#version 300 es',
+    'precision mediump float;',
+    'out vec4 outColor;',
+    'void main() {',
+    '  float d = clamp(gl_FragCoord.z, 0.0, 1.0);',
+    '  float gray = mix(0.08, 0.96, pow(d, 1.2));',
+    '  outColor = vec4(vec3(gray), 1.0);',
+    '}',
+  ].join('\n');
 
   function createShader(glCtx, type, source) {
     const shader = glCtx.createShader(type);
@@ -231,7 +250,7 @@
 
   function getProjectionMatrix() {
     const aspect = canvas.width / canvas.height;
-    const fovDeg = 90; // fixed ~90° FOV
+    const fovDeg = 90; // fixed ~90 deg FOV
     const near = 0.1;
     const far = 100.0;
     return Mat4.perspectiveFromFov(fovDeg, aspect, near, far);
