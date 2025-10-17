@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL Frustum Culling Demo</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0b1020;
+      color: #e7eef8;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    #glcanvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    .overlay {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(13, 18, 36, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 12px 14px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      user-select: none;
+    }
+    .overlay h2 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      letter-spacing: 0.4px;
+      opacity: 0.9;
+    }
+    .overlay .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+    .kbd {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 12px;
+    }
+    a, a:visited { color: #93c5fd; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <canvas id="glcanvas"></canvas>
+  <div class="overlay" id="ui">
+    <h2>Frustum Culling</h2>
+    <label class="row">
+      <input type="checkbox" id="cullingToggle" checked />
+      <span>Enable culling</span>
+    </label>
+    <div class="row"><strong>Visible</strong>: <span id="visibleCount">0</span> / <span id="totalCount">0</span></div>
+    <div class="row"><strong>FPS</strong>: <span id="fps">0</span></div>
+    <div class="row" style="margin-top:6px; opacity:0.8;">
+      <span class="kbd">Drag</span> orbit
+      <span class="kbd">Wheel</span> zoom
+    </div>
+  </div>
+  <script src="./script.js"></script>
+</body>
+</html>
