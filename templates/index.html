@@ -3,81 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POIsim - AI Safety Checker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Spinning Cube</title>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800">POIsim</h1>
-            <p class="text-xl text-gray-600">AI Safety and Jailbreak Detection System</p>
-        </header>
+<body style="margin:0; height:100vh; display:grid; place-items:center; background:#0b5fff;">
+    <canvas id="glcanvas" style="width:min(85vmin, 95vw); aspect-ratio: 1 / 1; display:block;"></canvas>
 
-        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-            <div class="mb-6">
-                <label for="text-input" class="block text-gray-700 text-sm font-bold mb-2">Enter text to analyze:</label>
-                <textarea id="text-input" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="4" placeholder="Enter your text here..."></textarea>
-            </div>
-            
-            <button onclick="analyzeText()" class="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                Analyze Text
-            </button>
+    <script type="module">
+        const TAU = Math.PI * 2;
 
-            <div id="results" class="mt-6 hidden">
-                <h2 class="text-xl font-bold mb-4">Analysis Results</h2>
-                <div class="space-y-4">
-                    <div>
-                        <span class="font-semibold">Safety Score:</span>
-                        <span id="score" class="ml-2"></span>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Nature:</span>
-                        <span id="nature" class="ml-2"></span>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Explanation:</span>
-                        <p id="explanation" class="mt-1 text-gray-700"></p>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Status:</span>
-                        <span id="status" class="ml-2"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+        class Mat4 {
+            constructor(values) {
+                this.m = values ? new Float32Array(values) : Mat4.identity().m;
+            }
 
-    <script>
-        async function analyzeText() {
-            const text = document.getElementById('text-input').value;
-            if (!text) {
-                alert('Please enter some text to analyze');
+            static identity() {
+                return new Mat4([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1,
+                ]);
+            }
+
+            static multiply(a, b) {
+                const out = new Float32Array(16);
+                const am = a.m, bm = b.m;
+                for (let col = 0; col < 4; col++) {
+                    for (let row = 0; row < 4; row++) {
+                        let sum = 0;
+                        for (let k = 0; k < 4; k++) {
+                            sum += am[k * 4 + row] * bm[col * 4 + k];
+                        }
+                        out[col * 4 + row] = sum;
+                    }
+                }
+                return new Mat4(out);
+            }
+
+            static translation(x, y, z) {
+                // Column-major; translation occupies the last (4th) column
+                return new Mat4([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    x, y, z, 1,
+                ].map((v, i) => v))
+                    // Reorder to place translation in last column
+                    // Desired columns: [1,0,0,0], [0,1,0,0], [0,0,1,0], [x,y,z,1]
+                    ;
+            }
+
+            static rotationY(theta) {
+                const c = Math.cos(theta);
+                const s = Math.sin(theta);
+                // Left-handed Y rotation (D3D-style):
+                // [ c  0 -s  0 ]
+                // [ 0  1  0  0 ]
+                // [ s  0  c  0 ]
+                // [ 0  0  0  1 ]
+                return new Mat4([
+                    c, 0, s, 0,
+                    0, 1, 0, 0,
+                    -s, 0, c, 0,
+                    0, 0, 0, 1,
+                ]);
+            }
+
+            // Left-handed frustum, column-major layout for WebGL
+            static frustum(left, right, bottom, top, near, far) {
+                const scale_x = (2 * near) / (right - left);
+                const scale_y = (2 * near) / (top - bottom);
+                const t_x = (right + left) / (right - left);
+                const t_y = (top + bottom) / (top - bottom);
+
+                const nonlin_c2 = (far + near) / (far - near);
+                const nonlin_c1 = (2 * far * near) / (far - near);
+                const c2 = nonlin_c2;
+                const c1 = nonlin_c1;
+
+                // Column-major order
+                return new Mat4([
+                    scale_x, 0, 0, 0,
+                    0, scale_y, 0, 0,
+                    t_x, t_y, c2, 1,
+                    0, 0, -c1, 0,
+                ]);
+            }
+
+            static perspective(fovyRadians, aspect, near, far) {
+                const t = near * Math.tan(fovyRadians / 2);
+                const b = -t;
+                const r = t * aspect;
+                const l = -r;
+                return Mat4.frustum(l, r, b, t, near, far);
+            }
+        }
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                const info = gl.getShaderInfoLog(shader);
+                gl.deleteShader(shader);
+                throw new Error('Shader compile failed: ' + info);
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vsSource, fsSource) {
+            const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            const program = gl.createProgram();
+            gl.attachShader(program, vs);
+            gl.attachShader(program, fs);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                const info = gl.getProgramInfoLog(program);
+                gl.deleteProgram(program);
+                throw new Error('Program link failed: ' + info);
+            }
+            return program;
+        }
+
+        const vertex_source = `#version 300 es
+        precision highp float;
+        layout(location=0) in vec3 a_position;
+        uniform mat4 u_mvp;
+        void main() {
+            gl_Position = u_mvp * vec4(a_position, 1.0);
+        }`;
+
+        const fragment_source = `#version 300 es
+        precision mediump float;
+        out vec4 f_color;
+        void main(void) {
+            // Solid grey cube
+            f_color = vec4(vec3(0.6), 1.0);
+        }`;
+
+        function initGL() {
+            const canvas = document.getElementById('glcanvas');
+            if (!canvas) return;
+
+            const gl = canvas.getContext('webgl2');
+            if (!gl) {
+                console.warn('WebGL2 not supported.');
                 return;
             }
 
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ text }),
-                });
+            // Create shaders & program
+            const program = createProgram(gl, vertex_source, fragment_source);
+            gl.useProgram(program);
 
-                const data = await response.json();
-                
-                // Update results
-                document.getElementById('score').textContent = data.score.toFixed(2);
-                document.getElementById('nature').textContent = data.nature;
-                document.getElementById('explanation').textContent = data.explanation;
-                document.getElementById('status').textContent = data.is_safe ? '✅ Safe' : '⚠️ Potentially Unsafe';
-                document.getElementById('status').className = data.is_safe ? 'text-green-500' : 'text-red-500';
-                
-                // Show results
-                document.getElementById('results').classList.remove('hidden');
-            } catch (error) {
-                alert('Error analyzing text: ' + error.message);
+            // Cube geometry (positions and indices)
+            const positions = new Float32Array([
+                // 0-3: back face (z = -1)
+                -1, -1, -1,
+                 1, -1, -1,
+                 1,  1, -1,
+                -1,  1, -1,
+                // 4-7: front face (z = +1)
+                -1, -1,  1,
+                 1, -1,  1,
+                 1,  1,  1,
+                -1,  1,  1,
+            ]);
+
+            const indices = new Uint16Array([
+                // back
+                0, 1, 2, 0, 2, 3,
+                // front
+                4, 5, 6, 4, 6, 7,
+                // top
+                3, 2, 6, 3, 6, 7,
+                // bottom
+                0, 4, 5, 0, 5, 1,
+                // right
+                1, 5, 6, 1, 6, 2,
+                // left
+                0, 3, 7, 0, 7, 4,
+            ]);
+
+            const vao = gl.createVertexArray();
+            gl.bindVertexArray(vao);
+
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+            const ebo = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+            // Uniforms
+            const u_mvp = gl.getUniformLocation(program, 'u_mvp');
+
+            // GL state
+            gl.enable(gl.DEPTH_TEST);
+            gl.clearDepth(1.0);
+            // Blue background inside canvas
+            gl.clearColor(11.0/255.0, 95.0/255.0, 1.0, 1.0);
+            // gl.enable(gl.CULL_FACE); // optional
+
+            function resizeCanvasToDisplaySize() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                const displayWidth = Math.max(1, Math.floor(rect.width * dpr));
+                const displayHeight = Math.max(1, Math.floor(rect.height * dpr));
+                if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                    canvas.width = displayWidth;
+                    canvas.height = displayHeight;
+                }
+                gl.viewport(0, 0, canvas.width, canvas.height);
             }
+
+            let start = performance.now();
+
+            function render(now) {
+                resizeCanvasToDisplaySize();
+
+                const t = (now - start) / 1000;
+                const angle = -TAU * 0.125 * t; // clockwise at .125 τ per second
+
+                const aspect = canvas.width / canvas.height;
+                const proj = Mat4.perspective(Math.PI / 2, aspect, 0.1, 100.0);
+                const model = Mat4.multiply(
+                    Mat4.translation(0, 0, 6),
+                    Mat4.rotationY(angle)
+                );
+                const mvp = Mat4.multiply(proj, model);
+
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                gl.uniformMatrix4fv(u_mvp, false, mvp.m);
+                gl.bindVertexArray(vao);
+                gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+                requestAnimationFrame(render);
+            }
+
+            requestAnimationFrame(render);
+            window.addEventListener('resize', () => resizeCanvasToDisplaySize());
+        }
+
+        // Defer initialization until DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGL);
+        } else {
+            initGL();
         }
     </script>
 </body>
