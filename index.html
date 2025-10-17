@@ -6,17 +6,11 @@
   <title>WebGL Frustum Cube</title>
   <style>
     html, body { height: 100%; margin: 0; }
-    #glcanvas { width: 100vw; height: 100vh; display: block; background: #111; }
-    .hud { position: fixed; top: 8px; left: 8px; color: #ddd; font-family: system-ui, sans-serif; font-size: 14px; }
-    .hud label { margin-right: 12px; }
+    #glcanvas { width: 100vw; height: 100vh; display: block; background: #66CCFF; }
   </style>
 </head>
 <body>
   <canvas id="glcanvas"></canvas>
-  <div class="hud">
-    <label><input id="depthDebug" type="checkbox" /> Depth debug</label>
-    <label>FOV: <input id="fov" type="range" min="20" max="120" value="90"> <span id="fovOut">90</span>°</label>
-  </div>
   <script src="script.js"></script>
 </body>
 </html>

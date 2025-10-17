@@ -8,13 +8,8 @@
     return;
   }
 
-  // ---------- UI ----------
-  const depthDebugCheckbox = document.getElementById('depthDebug');
-  const fovSlider = document.getElementById('fov');
-  const fovOut = document.getElementById('fovOut');
-
   const TAU = Math.PI * 2;
-  const ROTATION_SPEED_RAD_PER_SEC = TAU * 0.125; // 1/8 tau per second
+  const ROTATION_SPEED_RAD_PER_SEC = TAU * 0.125; // one full rotation / 8s
 
   // ---------- Matrix helpers (column-major, OpenGL style) ----------
   const Mat4 = {
@@ -67,6 +62,42 @@
         0, 0, 0, 1,
       ]);
     },
+    
+    lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ, upX, upY, upZ) {
+      // Compute forward, right, and up vectors (right-handed)
+      const fx = targetX - eyeX;
+      const fy = targetY - eyeY;
+      const fz = targetZ - eyeZ;
+      const fLen = Math.hypot(fx, fy, fz) || 1;
+      const f0 = fx / fLen, f1 = fy / fLen, f2 = fz / fLen;
+
+      // up normalized
+      const upLen = Math.hypot(upX, upY, upZ) || 1;
+      const up0 = upX / upLen, up1 = upY / upLen, up2 = upZ / upLen;
+
+      // s = normalize(cross(f, up))
+      const s0 = f1 * up2 - f2 * up1;
+      const s1 = f2 * up0 - f0 * up2;
+      const s2 = f0 * up1 - f1 * up0;
+      const sLen = Math.hypot(s0, s1, s2) || 1;
+      const sx = s0 / sLen, sy = s1 / sLen, sz = s2 / sLen;
+
+      // u = cross(s, f)
+      const ux = sy * f2 - sz * f1;
+      const uy = sz * f0 - sx * f2;
+      const uz = sx * f1 - sy * f0;
+
+      // View matrix (column-major)
+      return new Float32Array([
+        sx,  ux, -f0, 0,
+        sy,  uy, -f1, 0,
+        sz,  uz, -f2, 0,
+        -(sx * eyeX + sy * eyeY + sz * eyeZ),
+        -(ux * eyeX + uy * eyeY + uz * eyeZ),
+        f0 * eyeX + f1 * eyeY + f2 * eyeZ,
+        1,
+      ]);
+    },
 
     // Frustum matrix following OpenGL clip space (right-handed)
     frustum(left, right, bottom, top, near, far) {
@@ -95,9 +126,10 @@
   };
 
   // ---------- Shaders ----------
-  const vertexSource = `#version 300 es\nprecision highp float;\nlayout(location=0) in vec3 a_position;\nlayout(location=1) in vec3 a_color;\nuniform mat4 u_model;\nuniform mat4 u_view;\nuniform mat4 u_proj;\nout vec3 v_color;\nvoid main() {\n  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);\n  v_color = a_color;\n}`;
+  const vertexSource = `#version 300 es\nprecision highp float;\nlayout(location=0) in vec3 a_position;\nuniform mat4 u_model;\nuniform mat4 u_view;\nuniform mat4 u_proj;\nvoid main() {\n  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);\n}`;
 
-  const fragmentSource = `#version 300 es\nprecision mediump float;\nin vec3 v_color;\nuniform bool u_depthDebug;\nout vec4 outColor;\nvoid main() {\n  if (u_depthDebug) {\n    outColor = vec4(vec3(gl_FragCoord.z), 1.0);\n  } else {\n    outColor = vec4(v_color, 1.0);\n  }\n}`;
+  // Grayscale depth-based shading: near -> dark, far -> light
+  const fragmentSource = `#version 300 es\nprecision mediump float;\nout vec4 outColor;\nvoid main() {\n  float d = clamp(gl_FragCoord.z, 0.0, 1.0);\n  float gray = mix(0.08, 0.96, pow(d, 1.2));\n  outColor = vec4(vec3(gray), 1.0);\n}`;
 
   function createShader(glCtx, type, source) {
     const shader = glCtx.createShader(type);
@@ -130,11 +162,9 @@
   gl.useProgram(program);
 
   const attribPositionLoc = 0; // layout location=0
-  const attribColorLoc = 1; // layout location=1
   const uniformModelLoc = gl.getUniformLocation(program, 'u_model');
   const uniformViewLoc = gl.getUniformLocation(program, 'u_view');
   const uniformProjLoc = gl.getUniformLocation(program, 'u_proj');
-  const uniformDepthDebugLoc = gl.getUniformLocation(program, 'u_depthDebug');
 
   // ---------- Geometry: cube ----------
   // 8 vertices, indexed triangles
@@ -147,17 +177,6 @@
      1, -1,  1,
      1,  1,  1,
     -1,  1,  1,
-  ]);
-
-  const colors = new Float32Array([
-    0.9, 0.1, 0.1,  // 0
-    0.1, 0.9, 0.1,  // 1
-    0.1, 0.1, 0.9,  // 2
-    0.9, 0.9, 0.1,  // 3
-    0.9, 0.1, 0.9,  // 4
-    0.1, 0.9, 0.9,  // 5
-    0.9, 0.5, 0.1,  // 6
-    0.6, 0.6, 0.6,  // 7
   ]);
 
   const indices = new Uint16Array([
@@ -185,13 +204,6 @@
   gl.enableVertexAttribArray(attribPositionLoc);
   gl.vertexAttribPointer(attribPositionLoc, 3, gl.FLOAT, false, 0, 0);
 
-  // Color buffer
-  const colorBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(attribColorLoc);
-  gl.vertexAttribPointer(attribColorLoc, 3, gl.FLOAT, false, 0, 0);
-
   // Index buffer
   const indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -200,7 +212,8 @@
   gl.bindVertexArray(null);
 
   // ---------- State ----------
-  gl.clearColor(0.05, 0.05, 0.07, 1);
+  // Light blue background (#66CCFF)
+  gl.clearColor(0.4, 0.8, 1.0, 1);
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
 
@@ -218,7 +231,7 @@
 
   function getProjectionMatrix() {
     const aspect = canvas.width / canvas.height;
-    const fovDeg = Number(fovSlider.value);
+    const fovDeg = 90; // fixed ~90° FOV
     const near = 0.1;
     const far = 100.0;
     return Mat4.perspectiveFromFov(fovDeg, aspect, near, far);
@@ -244,24 +257,18 @@
     gl.bindVertexArray(vao);
 
     const model = Mat4.multiply(Mat4.rotationY(angle), Mat4.rotationX(angle * 0.5));
-    const view = Mat4.translation(0, 0, -6);
+    // Camera slightly above and to the right, looking at origin
+    const view = Mat4.lookAt(3, 2, 6, 0, 0, 0, 0, 1, 0);
     const proj = getProjectionMatrix();
 
     gl.uniformMatrix4fv(uniformModelLoc, false, model);
     gl.uniformMatrix4fv(uniformViewLoc, false, view);
     gl.uniformMatrix4fv(uniformProjLoc, false, proj);
-    gl.uniform1i(uniformDepthDebugLoc, depthDebugCheckbox.checked ? 1 : 0);
 
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
     requestAnimationFrame(render);
   }
-
-  // ---------- UI wiring ----------
-  fovSlider.addEventListener('input', () => {
-    fovOut.textContent = String(fovSlider.value);
-  });
-  fovOut.textContent = String(fovSlider.value);
 
   // Kick off
   requestAnimationFrame(render);
