@@ -3,89 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POIsim - AI Safety Checker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Spinning Cube</title>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800">POIsim</h1>
-            <p class="text-xl text-gray-600">AI Safety and Jailbreak Detection System</p>
-        </header>
-
-        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-            <div class="mb-6">
-                <label for="text-input" class="block text-gray-700 text-sm font-bold mb-2">Enter text to analyze:</label>
-                <textarea id="text-input" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="4" placeholder="Enter your text here..."></textarea>
-            </div>
-            
-            <button onclick="analyzeText()" class="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                Analyze Text
-            </button>
-
-            <div id="results" class="mt-6 hidden">
-                <h2 class="text-xl font-bold mb-4">Analysis Results</h2>
-                <div class="space-y-4">
-                    <div>
-                        <span class="font-semibold">Safety Score:</span>
-                        <span id="score" class="ml-2"></span>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Nature:</span>
-                        <span id="nature" class="ml-2"></span>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Explanation:</span>
-                        <p id="explanation" class="mt-1 text-gray-700"></p>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Status:</span>
-                        <span id="status" class="ml-2"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <section class="container mx-auto px-4 mt-12">
-        <h2 class="text-2xl font-bold text-gray-800">Spinning Cube (Perspective-Correct, WebGL2)</h2>
-        <p class="text-gray-600 mt-1">90° FOV (.25 τ), spinning at .125 τ/s. Depth debug shader using gl_FragCoord.z.</p>
-        <canvas id="glcanvas" class="mt-4 w-full bg-black rounded" style="aspect-ratio: 4 / 3; max-height: 70vh;"></canvas>
-    </section>
-
-    <script>
-        async function analyzeText() {
-            const text = document.getElementById('text-input').value;
-            if (!text) {
-                alert('Please enter some text to analyze');
-                return;
-            }
-
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ text }),
-                });
-
-                const data = await response.json();
-                
-                // Update results
-                document.getElementById('score').textContent = data.score.toFixed(2);
-                document.getElementById('nature').textContent = data.nature;
-                document.getElementById('explanation').textContent = data.explanation;
-                document.getElementById('status').textContent = data.is_safe ? '✅ Safe' : '⚠️ Potentially Unsafe';
-                document.getElementById('status').className = data.is_safe ? 'text-green-500' : 'text-red-500';
-                
-                // Show results
-                document.getElementById('results').classList.remove('hidden');
-            } catch (error) {
-                alert('Error analyzing text: ' + error.message);
-            }
-        }
-    </script>
+<body style="margin:0; height:100vh; display:grid; place-items:center; background:#0b5fff;">
+    <canvas id="glcanvas" style="width:min(85vmin, 95vw); aspect-ratio: 1 / 1; display:block;"></canvas>
 
     <script type="module">
         const TAU = Math.PI * 2;
@@ -205,22 +126,20 @@
             return program;
         }
 
-        const vertex_source = `#version 300 es\n
-        precision highp float;\n
-        layout(location=0) in vec3 a_position;\n
-        uniform mat4 u_mvp;\n
-        out vec4 v_color;\n
-        void main() {\n
-            gl_Position = u_mvp * vec4(a_position, 1.0);\n
-            v_color = vec4(1.0);\n
+        const vertex_source = `#version 300 es
+        precision highp float;
+        layout(location=0) in vec3 a_position;
+        uniform mat4 u_mvp;
+        void main() {
+            gl_Position = u_mvp * vec4(a_position, 1.0);
         }`;
 
-        const fragment_source = `#version 300 es\n
-        precision mediump float;\n
-        in vec4 v_color;\n
-        out vec4 f_color;\n
-        void main(void) {\n
-            f_color = vec4(vec3(gl_FragCoord.z), 1.0);\n
+        const fragment_source = `#version 300 es
+        precision mediump float;
+        out vec4 f_color;
+        void main(void) {
+            // Solid grey cube
+            f_color = vec4(vec3(0.6), 1.0);
         }`;
 
         function initGL() {
@@ -285,7 +204,8 @@
             // GL state
             gl.enable(gl.DEPTH_TEST);
             gl.clearDepth(1.0);
-            gl.clearColor(0.1, 0.1, 0.12, 1.0);
+            // Blue background inside canvas
+            gl.clearColor(11.0/255.0, 95.0/255.0, 1.0, 1.0);
             // gl.enable(gl.CULL_FACE); // optional
 
             function resizeCanvasToDisplaySize() {
